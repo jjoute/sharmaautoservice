@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rider & Owner Dispatch Console | Sharma Auto Service — Upper Bagdogra</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #F1F5F9; font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; }
+    #riderMap { height: 250px; width: 100%; border-radius: 1rem; z-index: 10; }
+    .leaflet-container { font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen p-4 sm:p-6">
+
+  <!-- Toast Banner -->
+  <div id="toastBanner" class="hidden fixed top-4 right-4 left-4 sm:left-auto sm:max-w-md z-50 bg-slate-900 text-white px-4 py-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-between gap-3 transition-all">
+    <div class="flex items-center gap-2.5">
+      <span id="toastIcon" class="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0"></span>
+      <p id="toastMessage" class="text-xs font-bold leading-snug"></p>
+    </div>
+    <button type="button" onclick="hideToast()" class="text-slate-400 hover:text-white text-xs font-extrabold px-2 py-1 rounded-lg">✕</button>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- PIN LOCK SCREEN (PIN: 12345)                              -->
+  <!-- ========================================================= -->
+  <div id="pinLockScreen" class="max-w-md mx-auto mt-6 sm:mt-12 bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+    <div class="bg-slate-900 text-white p-6 text-center space-y-2">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-amber-400 text-slate-950 font-black text-xl flex items-center justify-center mx-auto shadow-lg">
+        🛺
+      </div>
+      <span class="inline-block bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+        Protected Rider Portal
+      </span>
+      <h1 class="text-xl font-black">Sharma Auto Service</h1>
+      <p class="text-xs text-slate-400">Upper Bagdogra, Panighata More • +91 8967864988</p>
+    </div>
+
+    <form id="pinLoginForm" class="p-6 space-y-5" novalidate>
+      <div class="text-center space-y-1">
+        <label for="pinInput" class="block text-xs font-extrabold uppercase tracking-wider text-slate-600">
+          Enter 5-Digit Rider PIN to Unlock
+        </label>
+        <p class="text-[11px] text-slate-400">Authorized access for Toto / E-Rickshaw owner only (PIN: <code class="font-bold text-slate-600">12345</code>)</p>
+      </div>
+
+      <div>
+        <input type="password" id="pinInput" maxlength="8" inputmode="numeric" placeholder="• • • • •"
+          class="w-full text-center tracking-[0.5em] text-2xl font-black py-3.5 px-4 rounded-2xl border-2 border-slate-200 focus:outline-none focus:border-emerald-600 bg-slate-50" />
+        <p id="pinErrorMsg" class="hidden text-xs text-rose-600 font-extrabold text-center mt-2">
+          ⚠️ Incorrect PIN. Please enter 12345.
+        </p>
+      </div>
+
+      <!-- Quick Touch Keypad -->
+      <div class="grid grid-cols-3 gap-2">
+        <button type="button" onclick="appendPinDigit('1')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">1</button>
+        <button type="button" onclick="appendPinDigit('2')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">2</button>
+        <button type="button" onclick="appendPinDigit('3')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">3</button>
+        <button type="button" onclick="appendPinDigit('4')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">4</button>
+        <button type="button" onclick="appendPinDigit('5')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">5</button>
+        <button type="button" onclick="appendPinDigit('6')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">6</button>
+        <button type="button" onclick="appendPinDigit('7')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">7</button>
+        <button type="button" onclick="appendPinDigit('8')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">8</button>
+        <button type="button" onclick="appendPinDigit('9')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">9</button>
+        <button type="button" onclick="clearPinInput()" class="py-3 rounded-xl bg-rose-50 hover:bg-rose-100 font-extrabold text-xs text-rose-700 active:scale-95 transition">Clear</button>
+        <button type="button" onclick="appendPinDigit('0')" class="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-base text-slate-900 active:scale-95 transition">0</button>
+        <button type="button" onclick="fillDefaultPin()" class="py-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 font-extrabold text-xs text-emerald-800 active:scale-95 transition">Auto 12345</button>
+      </div>
+
+      <button type="submit" class="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-lg shadow-emerald-600/25 transition active:scale-95">
+        🔓 Unlock Rider Console
+      </button>
+    </form>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MAIN RIDER & OWNER DASHBOARD (Shown after PIN unlock)     -->
+  <!-- ========================================================= -->
+  <div id="riderDashboardContainer" class="hidden max-w-5xl mx-auto space-y-6">
+
+    <!-- Top Header -->
+    <div class="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-200 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+      <div class="flex items-center gap-3.5">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-700 to-amber-500 text-white font-black text-lg flex items-center justify-center shadow shrink-0">
+          SAS
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+            <h1 class="text-xl sm:text-2xl font-black text-slate-900">Sharma Auto Service — Rider Console</h1>
+          </div>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Upper Bagdogra, Panighata More • Owner Mobile: <strong class="text-slate-800">+91 8967864988</strong> • Live GPS & Call/WhatsApp Dispatch
+          </p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+        <!-- Duty Status Selector -->
+        <select id="dutyStatusSelect" onchange="updateDutyStatus()"
+          class="text-xs font-extrabold px-3.5 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 focus:outline-none">
+          <option value="Online at Panighata More">🟢 Online at Panighata More</option>
+          <option value="On a Trip (Accepting Advance Rides)">🟡 Busy on Trip (Advance Only)</option>
+          <option value="Offline / Resting">🔴 Offline</option>
+        </select>
+
+        <button type="button" onclick="loadDemoBookings(true)"
+          class="text-xs font-bold px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition">
+          Load Demo Rides
+        </button>
+
+        <button type="button" id="refreshBtn" onclick="loadBookings()"
+          class="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition active:scale-95 shadow">
+          <svg id="refreshIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>Sync Rides</span>
+        </button>
+
+        <button type="button" onclick="lockConsole()"
+          class="text-xs font-extrabold px-3 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition">
+          🔒 Lock
+        </button>
+      </div>
+    </div>
+
+    <!-- Rider Live GPS Console & Interactive Map -->
+    <div class="bg-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-slate-800 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+      <div class="lg:col-span-6 space-y-3.5">
+        <div class="inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[11px] font-extrabold px-3 py-1 rounded-full">
+          <span>📡 Rider Live GPS Location Broadcaster</span>
+        </div>
+        <h2 class="text-lg sm:text-xl font-black text-white">
+          Share Your Toto / Auto Live Location With Customers
+        </h2>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Tap <strong class="text-white">"Capture My Current GPS"</strong> or drag the marker on the map. Whenever you click <strong class="text-emerald-400">WhatsApp Customer</strong> on any booking below, your live Google Maps location link is automatically attached!
+        </p>
+
+        <div class="bg-slate-800/90 p-3.5 rounded-2xl border border-slate-700 space-y-1.5 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 font-bold uppercase text-[10px]">Current Rider GPS Pin:</span>
+            <span id="riderGpsStatusTag" class="text-[10px] font-extrabold text-amber-400">Stand Default (Panighata More)</span>
+          </div>
+          <p id="riderCurrentCoordsText" class="font-mono font-extrabold text-sm text-emerald-400">26.7068, 88.3112</p>
+          <a id="riderCurrentMapsLink" href="https://www.google.com/maps?q=26.7068,88.3112" target="_blank" rel="noopener noreferrer"
+            class="text-[11px] text-sky-400 hover:underline font-bold inline-block">
+            ↗ Open Rider Position on Google Maps
+          </a>
+        </div>
+
+        <div class="flex flex-wrap gap-2.5 pt-1">
+          <button type="button" id="captureRiderGpsBtn" onclick="captureRiderGps()"
+            class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-4 py-3 rounded-xl shadow transition active:scale-95">
+            📍 Capture My Current GPS
+          </button>
+          <button type="button" onclick="copyRiderGpsLink()"
+            class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white text-xs font-extrabold px-4 py-3 rounded-xl transition active:scale-95">
+            📋 Copy My GPS Link
+          </button>
+        </div>
+      </div>
+
+      <div class="lg:col-span-6">
+        <div id="riderMap" class="border border-slate-700 shadow-inner"></div>
+        <p class="text-[11px] text-slate-400 mt-1.5 text-center">
+          Tap anywhere on the map or drag the 🛺 marker to update your current Toto stand/road position.
+        </p>
+      </div>
+    </div>
+
+    <!-- Owner Quick Stats Bar (Strictly No Fare / No Revenue Display) -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Total Ride Requests</span>
+        <p id="statTotalRides" class="text-2xl font-black text-slate-900 mt-1">0</p>
+        <span id="statTypeSplit" class="text-[11px] text-slate-500 font-medium">0 Instant • 0 Scheduled</span>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-600">New / Pending</span>
+        <p id="statPendingRides" class="text-2xl font-black text-amber-600 mt-1">0</p>
+        <span class="text-[11px] text-slate-500 font-medium">Needs Call / WhatsApp reply</span>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl border border-blue-200 shadow-sm">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-blue-600">Accepted / Active</span>
+        <p id="statActiveRides" class="text-2xl font-black text-blue-600 mt-1">0</p>
+        <span class="text-[11px] text-slate-500 font-medium">On the way or In Ride</span>
+      </div>
+
+      <div class="bg-slate-900 text-white p-4 rounded-2xl shadow-sm">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">Completed Trips</span>
+        <p id="statCompletedRides" class="text-2xl font-black text-white mt-1">0</p>
+        <span class="text-[11px] text-slate-300 font-medium">Direct fare settled with rider</span>
+      </div>
+    </div>
+
+    <!-- Filters & Search Bar -->
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div class="flex flex-wrap gap-1.5 text-xs font-bold">
+        <button type="button" onclick="filterBookings('All')" class="filter-btn active px-3.5 py-2 rounded-xl bg-slate-900 text-white shadow-sm">All Rides</button>
+        <button type="button" onclick="filterBookings('Pending')" class="filter-btn px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50">New / Pending</button>
+        <button type="button" onclick="filterBookings('Accepted / On the Way')" class="filter-btn px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50">Accepted / On Way</button>
+        <button type="button" onclick="filterBookings('In Ride')" class="filter-btn px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50">Arrived / In Ride</button>
+        <button type="button" onclick="filterBookings('Completed')" class="filter-btn px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50">Completed</button>
+      </div>
+
+      <input type="text" id="searchInput" oninput="renderBookings()" placeholder="Search Booking ID, Passenger, Pickup or Phone..."
+        class="px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:outline-none focus:border-emerald-600 sm:w-72" />
+    </div>
+
+    <!-- Bookings Feed -->
+    <div id="bookingsContainer" class="space-y-4">
+      <div class="text-center py-12 text-slate-400 font-medium text-sm">Loading Sharma Auto Service bookings...</div>
+    </div>
+
+  </div>
+
+  <script>
+    // =========================================================
+    // CONFIGURATION: SHARMA AUTO SERVICE & GOOGLE SHEET SCRIPT
+    // =========================================================
+    const RIDER_PIN = "12345";
+    const STORAGE_KEY = "sharma_auto_service_bookings_v1";
+    const SESSION_UNLOCK_KEY = "sharma_auto_rider_unlocked";
+    const GOOGLE_SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz_SHARMA_AUTO_SERVICE_WEB_APP/exec";
+
+    let allBookings = [];
+    let currentFilter = "All";
+    let riderCoords = { lat: 26.7068, lng: 88.3112 }; // Default: Panighata More Stand
+    let riderMap = null;
+    let riderMarker = null;
+
+    const statusBadges = {
+      "Pending": "bg-amber-100 text-amber-900 border-amber-300",
+      "Accepted / On the Way": "bg-blue-100 text-blue-900 border-blue-300",
+      "Arrived at Pickup": "bg-purple-100 text-purple-900 border-purple-300",
+      "In Ride": "bg-emerald-100 text-emerald-900 border-emerald-300",
+      "Completed": "bg-slate-200 text-slate-800 border-slate-300",
+      "Cancelled": "bg-rose-100 text-rose-900 border-rose-300"
+    };
+
+    // Toast Helpers
+    function showToast(message, isError) {
+      const banner = document.getElementById("toastBanner");
+      const msgEl = document.getElementById("toastMessage");
+      const iconEl = document.getElementById("toastIcon");
+      msgEl.textContent = message;
+      iconEl.className = isError
+        ? "w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0"
+        : "w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0";
+      banner.classList.remove("hidden");
+      setTimeout(hideToast, 4200);
+    }
+
+    function hideToast() {
+      const banner = document.getElementById("toastBanner");
+      if (banner) banner.classList.add("hidden");
+    }
+
+    // Safe Storage Helpers
+    function getStoredBookings() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return [];
+    }
+
+    function saveStoredBookings(list) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      } catch (e) {}
+    }
+
+    // =========================================================
+    // PIN AUTHENTICATION (12345)
+    // =========================================================
+    function appendPinDigit(digit) {
+      const input = document.getElementById("pinInput");
+      if (input.value.length < 8) {
+        input.value += digit;
+      }
+      document.getElementById("pinErrorMsg").classList.add("hidden");
+    }
+
+    function clearPinInput() {
+      document.getElementById("pinInput").value = "";
+      document.getElementById("pinErrorMsg").classList.add("hidden");
+    }
+
+    function fillDefaultPin() {
+      document.getElementById("pinInput").value = RIDER_PIN;
+      document.getElementById("pinErrorMsg").classList.add("hidden");
+    }
+
+    document.getElementById("pinLoginForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const entered = document.getElementById("pinInput").value.trim();
+      if (entered === RIDER_PIN) {
+        try {
+          localStorage.setItem(SESSION_UNLOCK_KEY, "true");
+        } catch (err) {}
+        unlockConsole();
+      } else {
+        document.getElementById("pinErrorMsg").classList.remove("hidden");
+        showToast("Incorrect Rider PIN. Use 12345.", true);
+      }
+    });
+
+    function unlockConsole() {
+      document.getElementById("pinLockScreen").classList.add("hidden");
+      document.getElementById("riderDashboardContainer").classList.remove("hidden");
+      initRiderMap();
+      loadBookings();
+    }
+
+    function lockConsole() {
+      try {
+        localStorage.removeItem(SESSION_UNLOCK_KEY);
+      } catch (err) {}
+      document.getElementById("pinInput").value = "";
+      document.getElementById("riderDashboardContainer").classList.add("hidden");
+      document.getElementById("pinLockScreen").classList.remove("hidden");
+      showToast("Rider Console locked.", false);
+    }
+
+    function updateDutyStatus() {
+      const status = document.getElementById("dutyStatusSelect").value;
+      showToast(`Rider status updated to: ${status}`, false);
+    }
+
+    // =========================================================
+    // RIDER LIVE GPS & LEAFLET MAP
+    // =========================================================
+    function initRiderMap() {
+      if (typeof L === "undefined") return;
+      if (riderMap) {
+        setTimeout(() => riderMap.invalidateSize(), 150);
+        return;
+      }
+      const mapEl = document.getElementById("riderMap");
+      if (!mapEl) return;
+
+      riderMap = L.map("riderMap").setView([riderCoords.lat, riderCoords.lng], 14);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "© OpenStreetMap"
+      }).addTo(riderMap);
+
+      const riderIcon = L.divIcon({
+        className: "rider-toto-pin",
+        html: `<div style="background:#F59E0B;color:#0F172A;font-weight:900;font-size:11px;padding:4px 9px;border-radius:999px;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.45);white-space:nowrap;">🛺 My Toto GPS</div>`,
+        iconSize: [96, 28],
+        iconAnchor: [48, 14]
+      });
+
+      riderMarker = L.marker([riderCoords.lat, riderCoords.lng], { draggable: true, icon: riderIcon }).addTo(riderMap);
+
+      riderMarker.on("dragend", function (e) {
+        const pos = e.target.getLatLng();
+        riderCoords = { lat: parseFloat(pos.lat.toFixed(5)), lng: parseFloat(pos.lng.toFixed(5)) };
+        document.getElementById("riderGpsStatusTag").textContent = "Manual Map Pin ✓";
+        refreshRiderGpsUI();
+      });
+
+      riderMap.on("click", function (e) {
+        riderCoords = {
+          lat: parseFloat(e.latlng.lat.toFixed(5)),
+          lng: parseFloat(e.latlng.lng.toFixed(5))
+        };
+        riderMarker.setLatLng([riderCoords.lat, riderCoords.lng]);
+        document.getElementById("riderGpsStatusTag").textContent = "Updated on Map ✓";
+        refreshRiderGpsUI();
+        showToast(`Rider GPS updated to ${riderCoords.lat}, ${riderCoords.lng}`, false);
+      });
+
+      refreshRiderGpsUI();
+    }
+
+    function refreshRiderGpsUI() {
+      const url = `https://www.google.com/maps?q=${riderCoords.lat},${riderCoords.lng}`;
+      document.getElementById("riderCurrentCoordsText").textContent = `${riderCoords.lat.toFixed(5)}, ${riderCoords.lng.toFixed(5)}`;
+      document.getElementById("riderCurrentMapsLink").href = url;
+      renderBookings();
+    }
+
+    function captureRiderGps() {
+      const btn = document.getElementById("captureRiderGpsBtn");
+      if (!navigator.geolocation) {
+        showToast("Geolocation not supported on this browser. Tap the map to set your position.", true);
+        return;
+      }
+      btn.textContent = "📡 Locking GPS...";
+      btn.disabled = true;
+
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          riderCoords = {
+            lat: parseFloat(pos.coords.latitude.toFixed(5)),
+            lng: parseFloat(pos.coords.longitude.toFixed(5))
+          };
+          if (riderMarker && riderMap) {
+            riderMarker.setLatLng([riderCoords.lat, riderCoords.lng]);
+            riderMap.setView([riderCoords.lat, riderCoords.lng], 15);
+          }
+          document.getElementById("riderGpsStatusTag").textContent = "Live Device GPS Locked ✓";
+          btn.textContent = "📍 Live GPS Locked ✓";
+          btn.disabled = false;
+          refreshRiderGpsUI();
+          showToast("Rider live GPS coordinates captured! Ready to share on WhatsApp.", false);
+        },
+        function () {
+          btn.textContent = "📍 Capture My Current GPS";
+          btn.disabled = false;
+          showToast("Could not read device GPS. Drag the 🛺 marker on the map to set your spot!", true);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    function copyRiderGpsLink() {
+      const url = `https://www.google.com/maps?q=${riderCoords.lat},${riderCoords.lng}`;
+      const tempInput = document.createElement("textarea");
+      tempInput.value = url;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      try {
+        document.execCommand("copy");
+        showToast("Copied your live Google Maps GPS link to clipboard!", false);
+      } catch (e) {
+        showToast(`Your GPS Link: ${url}`, false);
+      }
+      document.body.removeChild(tempInput);
+    }
+
+    // =========================================================
+    // ANALYTICS & BOOKINGS MANAGEMENT
+    // =========================================================
+    function updateAnalytics() {
+      const total = allBookings.length;
+      const pending = allBookings.filter(b => b.status === "Pending").length;
+      const active = allBookings.filter(b =>
+        b.status === "Accepted / On the Way" || b.status === "Arrived at Pickup" || b.status === "In Ride"
+      ).length;
+      const completed = allBookings.filter(b => b.status === "Completed").length;
+
+      const instantCount = allBookings.filter(b => (b.bookingType || "").includes("Ride Now")).length;
+      const scheduledCount = total - instantCount;
+
+      document.getElementById("statTotalRides").textContent = total;
+      document.getElementById("statTypeSplit").textContent = `${instantCount} Instant • ${scheduledCount} Advance/Reserve`;
+      document.getElementById("statPendingRides").textContent = pending;
+      document.getElementById("statActiveRides").textContent = active;
+      document.getElementById("statCompletedRides").textContent = completed;
+    }
+
+    // Build 1-Click Rider -> Customer WhatsApp Message with Rider Live GPS Link
+    function buildRiderToCustomerWhatsAppUrl(booking) {
+      const cleanPhone = String(booking.phone || "").replace(/\D/g, "").slice(-10);
+      const riderLiveMapUrl = `https://www.google.com/maps?q=${riderCoords.lat},${riderCoords.lng}`;
+
+      let statusLine = "";
+      if (booking.status === "Pending") {
+        statusLine = "We have received your ride request and are confirming your pickup.";
+      } else if (booking.status === "Accepted / On the Way") {
+        statusLine = "Your ride is *CONFIRMED* and our Toto/Auto is *On the Way* to your pickup point!";
+      } else if (booking.status === "Arrived at Pickup") {
+        statusLine = "Our rider has *Arrived at Your Pickup Point*. Please come to the pickup spot.";
+      } else if (booking.status === "In Ride") {
+        statusLine = "Your ride is currently *In Progress*. Have a safe journey!";
+      } else if (booking.status === "Completed") {
+        statusLine = "Thank you for riding with *Sharma Auto Service*! Hope to serve you again soon.";
+      } else {
+        statusLine = `Your booking status has been updated to: *${booking.status}*.`;
+      }
+
+      const text =
+        `Hello *${booking.customerName}* 👋,\n\n` +
+        `Update from *Sharma Auto Service (Upper Bagdogra, Panighata More)* for Booking *#${booking.bookingId}*:\n` +
+        `👉 ${statusLine}\n\n` +
+        `🛺 *Vehicle:* ${booking.vehicleType}\n` +
+        `🟢 *Pickup:* ${booking.pickupPoint}\n` +
+        `🔴 *Drop-Off:* ${booking.dropPoint}\n` +
+        `🕒 *Schedule:* ${booking.bookingType} (${booking.scheduleInfo || "Immediate"})\n\n` +
+        `📍 *Track Rider's Live GPS Location:* ${riderLiveMapUrl}\n` +
+        `📞 *Rider Direct Call:* +91 8967864988`;
+
+      return `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(text)}`;
+    }
+
+    function renderBookings() {
+      const container = document.getElementById("bookingsContainer");
+      const query = (document.getElementById("searchInput").value || "").toLowerCase().trim();
+
+      const filtered = allBookings.filter(b => {
+        const matchesTab = currentFilter === "All"
+          || b.status === currentFilter
+          || (currentFilter === "In Ride" && (b.status === "Arrived at Pickup" || b.status === "In Ride"));
+
+        const matchesSearch = !query
+          || (b.bookingId || "").toLowerCase().includes(query)
+          || (b.customerName || "").toLowerCase().includes(query)
+          || (b.pickupPoint || "").toLowerCase().includes(query)
+          || (b.dropPoint || "").toLowerCase().includes(query)
+          || String(b.phone || "").includes(query);
+
+        return matchesTab && matchesSearch;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white border border-slate-200 p-8 rounded-2xl text-center text-slate-400 text-xs font-semibold">
+            No ride bookings matching this filter. Click "Load Demo Rides" above to preview sample Upper Bagdogra trips.
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(booking => {
+        const badgeClass = statusBadges[booking.status] || "bg-slate-100 text-slate-800 border-slate-300";
+        const isInstant = (booking.bookingType || "").includes("Ride Now");
+        const isReserve = (booking.bookingType || "").includes("Reserve");
+        const waCustomerUrl = buildRiderToCustomerWhatsAppUrl(booking);
+
+        // Turn-by-turn navigation from Rider's current GPS to Customer's Pickup GPS
+        const navToPickupUrl = booking.pickupCoords
+          ? `https://www.google.com/maps/dir/?api=1&origin=${riderCoords.lat},${riderCoords.lng}&destination=${booking.pickupCoords}&travelmode=driving`
+          : (booking.pickupMapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.pickupPoint)}`);
+
+        return `
+          <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <!-- Top Row -->
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-mono font-black text-sm bg-slate-900 text-white px-2.5 py-1 rounded-lg">${booking.bookingId}</span>
+                <span class="text-xs font-extrabold px-2.5 py-1 rounded-lg ${isInstant ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : isReserve ? 'bg-purple-50 text-purple-800 border border-purple-200' : 'bg-amber-50 text-amber-900 border border-amber-200'}">
+                  ${isInstant ? '⚡ Ride Now (Instant)' : isReserve ? '🕒 Full-Day / Local Reserve' : '📅 Scheduled Advance Ride'}
+                </span>
+                <span class="text-[11px] font-bold text-slate-400">${booking.timestamp || ''}</span>
+              </div>
+              <span class="px-3 py-1 rounded-full text-xs font-extrabold border ${badgeClass}">
+                ${booking.status}
+              </span>
+            </div>
+
+            <!-- Middle Grid: Passenger + Call/WhatsApp & Route + Maps -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div class="space-y-2">
+                <p class="text-slate-400 uppercase font-extrabold text-[10px]">Passenger & Direct Contact</p>
+                <div class="flex items-center justify-between">
+                  <p class="font-extrabold text-slate-900 text-base">${booking.customerName}</p>
+                  <span class="text-xs font-bold bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-lg">${booking.passengerCount || '2 Passengers'}</span>
+                </div>
+
+                <!-- 1-Click Call Back & WhatsApp with Rider Live GPS -->
+                <div class="flex flex-wrap items-center gap-2 pt-1">
+                  <a href="tel:+91${booking.phone}"
+                    class="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3.5 py-2 rounded-xl shadow-sm transition">
+                    <span>📞 Call Back (+91 ${booking.phone})</span>
+                  </a>
+                  <a href="${waCustomerUrl}" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3.5 py-2 rounded-xl shadow-sm transition">
+                    <span>💬 WhatsApp + Send My GPS</span>
+                  </a>
+                </div>
+
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1 mt-1">
+                  <p class="text-slate-600"><strong>Requested Vehicle:</strong> <span class="text-slate-900 font-bold">${booking.vehicleType}</span></p>
+                  <p class="text-slate-600"><strong>Schedule / Timing:</strong> <span class="text-emerald-800 font-bold">${booking.scheduleInfo || 'Immediate Pickup'}</span></p>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-slate-400 uppercase font-extrabold text-[10px]">Route Start, End & GPS Navigation</p>
+                <div class="bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl space-y-2">
+                  <div>
+                    <span class="text-[10px] font-extrabold uppercase text-emerald-800 block">🟢 Start Point (Pickup):</span>
+                    <p class="font-extrabold text-slate-900 text-xs sm:text-sm">${booking.pickupPoint}</p>
+                  </div>
+                  <div class="border-t border-emerald-100 pt-1.5">
+                    <span class="text-[10px] font-extrabold uppercase text-rose-800 block">🔴 End Point (Drop-Off):</span>
+                    <p class="font-extrabold text-slate-900 text-xs sm:text-sm">${booking.dropPoint}</p>
+                  </div>
+                </div>
+
+                <!-- GPS Navigation Links for Rider -->
+                <div class="flex flex-wrap items-center gap-2 pt-0.5">
+                  <a href="${navToPickupUrl}" target="_blank" rel="noopener noreferrer"
+                    class="flex-1 text-center bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3 py-2 rounded-xl shadow-sm transition">
+                    🧭 Navigate to Pickup GPS
+                  </a>
+                  <a href="${booking.routeMapUrl || navToPickupUrl}" target="_blank" rel="noopener noreferrer"
+                    class="flex-1 text-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold px-3 py-2 rounded-xl border border-slate-200 transition">
+                    🗺️ Full Route Map
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            ${booking.notes && booking.notes !== "None" ? `
+              <div class="bg-amber-50 border border-amber-200/80 p-2.5 rounded-xl text-xs text-amber-900">
+                <strong>Passenger Note:</strong> ${booking.notes}
+              </div>
+            ` : ""}
+
+            <!-- Status Update Bar -->
+            <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Update Ride Stage & Share GPS:</span>
+              <div class="flex flex-wrap gap-1.5">
+                <button type="button" onclick="updateBookingStatus('${booking.bookingId}', 'Accepted / On the Way')"
+                  class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition">
+                  🚕 Accept & On the Way
+                </button>
+                <button type="button" onclick="updateBookingStatus('${booking.bookingId}', 'Arrived at Pickup')"
+                  class="text-xs font-bold px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 transition">
+                  📍 Arrived at Pickup
+                </button>
+                <button type="button" onclick="updateBookingStatus('${booking.bookingId}', 'In Ride')"
+                  class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition">
+                  🛺 Start Ride
+                </button>
+                <button type="button" onclick="updateBookingStatus('${booking.bookingId}', 'Completed')"
+                  class="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition">
+                  ✅ Complete
+                </button>
+                <button type="button" onclick="updateBookingStatus('${booking.bookingId}', 'Cancelled')"
+                  class="text-xs font-bold px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition">
+                  ✕ Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function updateBookingStatus(bookingId, newStatus) {
+      const target = allBookings.find(b => b.bookingId === bookingId);
+      const riderLiveMapUrl = `https://www.google.com/maps?q=${riderCoords.lat},${riderCoords.lng}`;
+      if (target) {
+        target.status = newStatus;
+        target.riderGpsUrl = riderLiveMapUrl;
+        saveStoredBookings(allBookings);
+        updateAnalytics();
+        renderBookings();
+        showToast(`Booking ${bookingId} marked as "${newStatus}" with your live GPS attached!`, false);
+      }
+
+      if (!GOOGLE_SCRIPT_WEB_APP_URL.startsWith("http") || GOOGLE_SCRIPT_WEB_APP_URL.includes("SHARMA_AUTO_SERVICE_WEB_APP")) {
+        return;
+      }
+
+      try {
+        await fetch(GOOGLE_SCRIPT_WEB_APP_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "updateStatus",
+            bookingId: bookingId,
+            newStatus: newStatus,
+            riderGpsUrl: riderLiveMapUrl
+          })
+        });
+      } catch (err) {}
+    }
+
+    function filterBookings(status) {
+      currentFilter = status;
+      document.querySelectorAll(".filter-btn").forEach(btn => {
+        const label = btn.textContent.trim();
+        const isMatch =
+          (status === "All" && label === "All Rides") ||
+          (status === "Pending" && label === "New / Pending") ||
+          (status === "Accepted / On the Way" && label === "Accepted / On Way") ||
+          (status === "In Ride" && label === "Arrived / In Ride") ||
+          (status === "Completed" && label === "Completed");
+
+        btn.className = isMatch
+          ? "filter-btn active px-3.5 py-2 rounded-xl bg-slate-900 text-white shadow-sm"
+          : "filter-btn px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50";
+      });
+      renderBookings();
+    }
+
+    async function loadBookings() {
+      const icon = document.getElementById("refreshIcon");
+      if (icon) icon.classList.add("animate-spin");
+
+      const localList = getStoredBookings();
+
+      if (GOOGLE_SCRIPT_WEB_APP_URL.startsWith("http") && !GOOGLE_SCRIPT_WEB_APP_URL.includes("SHARMA_AUTO_SERVICE_WEB_APP")) {
+        try {
+          const res = await fetch(GOOGLE_SCRIPT_WEB_APP_URL + '?action=getBookings');
+          const remoteList = await res.json();
+          if (Array.isArray(remoteList) && remoteList.length > 0) {
+            allBookings = remoteList;
+            saveStoredBookings(allBookings);
+          } else {
+            allBookings = localList;
+          }
+        } catch (err) {
+          allBookings = localList;
+        }
+      } else {
+        allBookings = localList;
+      }
+
+      if (allBookings.length === 0) {
+        loadDemoBookings(false);
+      } else {
+        updateAnalytics();
+        renderBookings();
+      }
+
+      if (icon) setTimeout(() => icon.classList.remove("animate-spin"), 350);
+    }
+
+    // Realistic Local Upper Bagdogra & Panighata More Demo Bookings
+    function loadDemoBookings(notifyUser) {
+      const demoData = [
+        {
+          bookingId: "SAS-94K2M",
+          timestamp: "Today, 9:15 AM",
+          customerName: "Subhajit Roy",
+          phone: "9832011223",
+          passengerCount: "2 Passengers",
+          vehicleType: "Super Black Yatri E-Rickshaw (Toto)",
+          bookingType: "Ride Now (Instant Pickup)",
+          scheduleInfo: "Immediate Pickup",
+          pickupPoint: "Panighata More (Near Pharmacy / Main Stand)",
+          dropPoint: "Upper Bagdogra Market / Bazar",
+          pickupCoords: "26.7068,88.3112",
+          dropCoords: "26.7042,88.3168",
+          pickupMapUrl: "https://www.google.com/maps?q=26.7068,88.3112",
+          routeMapUrl: "https://www.google.com/maps/dir/?api=1&origin=26.7068,88.3112&destination=26.7042,88.3168&travelmode=driving",
+          notes: "Waiting near Panighata More tea shop with 2 shopping bags.",
+          status: "Pending",
+          riderGpsUrl: "https://www.google.com/maps?q=26.7068,88.3112"
+        },
+        {
+          bookingId: "SAS-71P8X",
+          timestamp: "Today, 8:40 AM",
+          customerName: "Pema Tamang",
+          phone: "9733044556",
+          passengerCount: "Passengers + Airport Bags / Market Load",
+          vehicleType: "Bajaj Electric Wego White Auto",
+          bookingType: "Scheduled / Advance Ride",
+          scheduleInfo: "Tomorrow at 06:30 (Airport / Railway Station Drop)",
+          pickupPoint: "Balram Nagar, Upper Bagdogra (Lane 2)",
+          dropPoint: "Bagdogra Airport (IXB) Terminal Gate",
+          pickupCoords: "26.7125,88.3045",
+          dropCoords: "26.6853,88.3283",
+          pickupMapUrl: "https://www.google.com/maps?q=26.7125,88.3045",
+          routeMapUrl: "https://www.google.com/maps/dir/?api=1&origin=26.7125,88.3045&destination=26.6853,88.3283&travelmode=driving",
+          notes: "Early morning Indigo flight. Please call 15 mins before reaching Balram Nagar gate.",
+          status: "Accepted / On the Way",
+          riderGpsUrl: "https://www.google.com/maps?q=26.7068,88.3112"
+        },
+        {
+          bookingId: "SAS-38V5N",
+          timestamp: "Yesterday, 5:20 PM",
+          customerName: "Anita Sharma",
+          phone: "9434088991",
+          passengerCount: "4 Passengers (Full Toto/Auto)",
+          vehicleType: "Super Black Yatri E-Rickshaw (Toto)",
+          bookingType: "Full-Day / Local Reserve",
+          scheduleInfo: "Half-Day Local Reserve (4 Hrs)",
+          pickupPoint: "Sri Colony / Life Line Polyclinic (AH-2)",
+          dropPoint: "Manjha Bridge / Panighata Tea Garden & Return",
+          pickupCoords: "26.7005,88.3190",
+          dropCoords: "26.7340,88.2820",
+          pickupMapUrl: "https://www.google.com/maps?q=26.7005,88.3190",
+          routeMapUrl: "https://www.google.com/maps/dir/?api=1&origin=26.7005,88.3190&destination=26.7340,88.2820&travelmode=driving",
+          notes: "Family visit to Panighata with 1 hour waiting.",
+          status: "Completed",
+          riderGpsUrl: "https://www.google.com/maps?q=26.7068,88.3112"
+        }
+      ];
+
+      allBookings = demoData;
+      saveStoredBookings(allBookings);
+      updateAnalytics();
+      renderBookings();
+      if (notifyUser) {
+        showToast("Loaded sample Upper Bagdogra & Panighata More ride bookings!", false);
+      }
+    }
+
+    // Auto-unlock if already unlocked in current browser session
+    window.addEventListener("load", function () {
+      let alreadyUnlocked = false;
+      try {
+        alreadyUnlocked = localStorage.getItem(SESSION_UNLOCK_KEY) === "true";
+      } catch (e) {}
+      if (alreadyUnlocked) {
+        unlockConsole();
+      }
+    });
+  </script>
+</body>
+</html>
